@@ -18,7 +18,9 @@ use strict;
 use warnings;
 
 use Getopt::Long;
-use Net::HTTP;
+use HTML::TreeBuilder;
+binmode STDOUT, ':encoding(UTF-8)';
+
 our $VERSION = '2015-09-01';
 
 my $langs = 'cz|en|ge|fr|it|la|ru|sp|eo';
@@ -51,20 +53,20 @@ sub help {
 
 $ARGV[0] or help();
 
-my $to='cz';
+my $to = 'cz';
 my $from;
-my $results=10;
+my $results = 10;
 
 GetOptions(
-    "from=s" => \$from,
-    "to=s" => \$to,
-    "results=i" => \$results,
+    'from=s'    => \$from,
+    'to=s'      => \$to,
+    'results=i' => \$results,
 );
 
 $ARGV[0] or help('Nebyl zadan zadny retezec k prelozeni.');
 
 $from //= 'cz' eq $to ? 'en' : 'cz';
-$from eq $to  and help('Vstupni a vystupni jazyk nesmi byt stejny.');
+$from eq $to and help('Vstupni a vystupni jazyk nesmi byt stejny.');
 
 my $dict = $to eq 'cz' ? "$from$to" : "$to$from";
 
@@ -79,22 +81,12 @@ else {
 $from =~ s/cz/cz_d/;
 $dict .= ".$from";
 
-my $http = Net::HTTP->new( Host => 'www.slovnik.cz' ) or die $@;
 my $string = join '%20', @ARGV;
 
-$http->write_request(
-    GET => "/bin/mld.fpl?vcb=$string&dictdir=$dict&lines=$results" );
-my ( $status, $mess, %headers ) = $http->read_response_headers;
-my $html;
-my $buf;
+my $html = HTML::TreeBuilder->new_from_url(
+    "http://www.slovnik.cz/bin/mld.fpl?vcb=$string&dictdir=$dict&lines=$results"
+);
 
-while ( my $n = $http->read_entity_body( $buf, 1024 ) ) {
-    defined $n or help("Chyba pri cteni HTML: $!");
-    $html .= $buf;
-}
+say join qq{\n}, map { $_->as_text } $html->look_down( 'class', 'pair' );
 
-# ja vim, ja vim, ale s HTML::Parser jeste neumim...
-foreach ( grep { /"pair"/ } split /\n/, $html ) {
-    s/(?:^\s*)|(?:<[^>]+>)//g;
-    print "$_\n";
-}
+__END__
