@@ -17,9 +17,9 @@ use 5.010;
 use strict;
 use warnings;
 
-use Getopt::Std;
+use Getopt::Long;
 use Net::HTTP;
-our $VERSION = '2013-06-26';
+our $VERSION = '2015-09-01';
 
 my $langs = 'cz|en|ge|fr|it|la|ru|sp|eo';
 
@@ -51,48 +51,39 @@ sub help {
 
 $ARGV[0] or help();
 
-my %opts;
-getopt( 'f:t:r:-', \%opts );
+my $to='cz';
+my $from;
+my $results=10;
+
+GetOptions(
+    "from=s" => \$from,
+    "to=s" => \$to,
+    "results=i" => \$results,
+);
 
 $ARGV[0] or help('Nebyl zadan zadny retezec k prelozeni.');
 
-# silene podmineny vychozi hodnoty :-)
-# ((not $opts{t} and not $opts{f}) or
-# ($opts{f} and $opts{f} eq "cz")) and $opts{t} = "en";
-# $opts{f} or $opts{f} = "cz";
-# $opts{t} or $opts{t} = "cz";
-# $opts{f} ne $opts{t} or &Help("Vstupni a vystupni jazyk nesmi byt stejny.");
-# $opts{r} or $opts{r} = 10;
-# #print "-f $opts{f} -t $opts{t}\n";
+$from //= 'cz' eq $to ? 'en' : 'cz';
+$from eq $to  and help('Vstupni a vystupni jazyk nesmi byt stejny.');
 
-$opts{t} //= 'cz';
-$opts{f} //= 'cz' eq $opts{t} ? 'en' : 'cz';
-$opts{r} //= 10;
-$opts{t} eq $opts{f} and help('Vstupni a vystupni jazyk nesmi byt stejny.');
-
-my $dict = $opts{t} eq 'cz' ? "$opts{f}$opts{t}" : "$opts{t}$opts{f}";
+my $dict = $to eq 'cz' ? "$from$to" : "$to$from";
 
 if ( "$dict" =~ /^(?:$langs){2}$/ ) {
     "$dict" =~ /(?:^cz|cz$)/
       or help('Vstupni nebo vystupni jazyk musi byt cestina.');
 }
 else {
-    help("slovnik.cz nepodporuje preklad z '$opts{f}' do '$opts{t}'.");
+    help("slovnik.cz nepodporuje preklad z '$from' do '$to'.");
 }
 
-$opts{f} =~ s/cz/cz_d/;
-$dict .= ".$opts{f}";
+$from =~ s/cz/cz_d/;
+$dict .= ".$from";
 
-my $http = Net::HTTP->new( Host => 'www.slovnik.cz' ) || die $@;
-my $string = $ARGV[0];
-shift;
-foreach (@ARGV) {
-    $string .= " $_";
-}
+my $http = Net::HTTP->new( Host => 'www.slovnik.cz' ) or die $@;
+my $string = join '%20', @ARGV;
 
-$string =~ s/ /%20/g;
 $http->write_request(
-    GET => "/bin/mld.fpl?vcb=$string&dictdir=$dict&lines=$opts{r}" );
+    GET => "/bin/mld.fpl?vcb=$string&dictdir=$dict&lines=$results" );
 my ( $status, $mess, %headers ) = $http->read_response_headers;
 my $html;
 my $buf;
