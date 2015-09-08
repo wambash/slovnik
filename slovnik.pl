@@ -18,75 +18,164 @@ use strict;
 use warnings;
 
 use Getopt::Long;
+use Pod::Usage;
 use HTML::TreeBuilder;
+use Readonly;
+use URI;
+no warnings 'experimental::smartmatch';
+
 binmode STDOUT, ':encoding(UTF-8)';
+
+#binmode STDERR, ':encoding(UTF-8)';
 
 our $VERSION = '2015-09-01';
 
-my $langs = 'cz|en|ge|fr|it|la|ru|sp|eo';
+Readonly my @SUPORTED_DICTCS =>
+  qw{encz.en encz.cz gecz.ge gecz.cz frcz.fr frcz.cz itcz.it itcz.cz spcz.sp spcz.cz rucz.ru rucz.cz lacz.la lacz.cz eocz.eo eocz.cz eosk.eo eosk.sk plcz.pl plcz.cz};
+Readonly my @LANGS = qw{cz en ge fr it la ru sp eo pl};
 
-sub help {
-
-    my $out = \*STDERR;
-    my $ret = 1;
-    if ( !$_[0] ) {
-        $out = \*STDOUT;
-        $ret = 0;
-    }
-
-    print {$out}
-"slovnik.cz CLI původně napsal David Watzke <slovnik\@watzke.cz> http://www.watzke.cz/cs/\n"
-      . "Pouziti: slovnik [prepinace] [retezec]\n\n";
-    print {$out} "Chyba: $_[0]\n\n" if $_[0];
-    print {$out} "Prepinace:\n"
-      . "\t-f[$langs]\tvstupni jazyk\n"
-      . "\t-t[$langs]\tvystupni jazyk\n"
-      . "\t-r[5-50]\t\t\tpocet vysledku, vychozi 10\n\n"
-      . "Poznamky:\n"
-      . " Bud vstupni nebo vystupni jazyk musi byt cestina (cz), takze\n"
-      . " vychozi je preklad cz->en a zadate-li -f ruzne od cz, tak [f]->cz.\n"
-
-      . " Chyby hlaste na vyse uvedeny e-mail.\n";
-
-    exit $ret;
-}
-
-$ARGV[0] or help();
-
-my $to = 'cz';
 my $from;
-my $results = 10;
+my $to = 'cz';
+my $dictdir;
+Readonly my $DEFAULT_SHOWED_RESULTS => 10;
+my $results = $DEFAULT_SHOWED_RESULTS;
+my $man     = 0;
+my $help    = 0;
 
 GetOptions(
-    'from=s'    => \$from,
-    'to=s'      => \$to,
-    'results=i' => \$results,
+    'from=s'          => \$from,
+    'to=s'            => \$to,
+    'dictdir=s'       => \$dictdir,
+    'results|lines=i' => \$results,
+    'help'            => \$help,
+    'man'             => \$man,
 );
 
-$ARGV[0] or help('Nebyl zadan zadny retezec k prelozeni.');
+$help and pod2usage( -exitval => 1, -verbose => 1 );
+$man  and pod2usage( -exitval => 0, -verbose => 2 );
 
-$from //= 'cz' eq $to ? 'en' : 'cz';
-$from eq $to and help('Vstupni a vystupni jazyk nesmi byt stejny.');
+$ARGV[0]
+  or pod2usage( -msg => 'Nebyl zadán žádný řetězec k přeložení.' );
 
-my $dict = $to eq 'cz' ? "$from$to" : "$to$from";
+if ( !$dictdir ) {
+    $from //= 'cz' eq $to ? 'en' : 'cz';
 
-if ( "$dict" =~ /^(?:$langs){2}$/ ) {
-    "$dict" =~ /(?:^cz|cz$)/
-      or help('Vstupni nebo vystupni jazyk musi byt cestina.');
+    $from eq $to
+      and pod2usage('Vstupní a výstupní jazyk nesmí být stejný.');
+    $from ~~ @LANGS and $to ~~ @LANGS
+      or pod2usage("slovnik.cz nepodporuje překlad z '$from' do '$to'.");
+    ( $from eq 'cz' or $to eq 'cz' )
+      or pod2usage('Vstupní nebo výstupní jazyk musí být čeština.');
+
+    $dictdir = $to eq 'cz' ? "$from$to" : "$to$from";
+    $dictdir .= ".$from";
 }
-else {
-    help("slovnik.cz nepodporuje preklad z '$from' do '$to'.");
-}
 
-$from =~ s/cz/cz_d/;
-$dict .= ".$from";
+$dictdir ~~ @SUPORTED_DICTCS
+  or pod2usage("Slovník musí být jeden z @SUPORTED_DICTCS.");
 
-my $string = join '%20', @ARGV;
-
-my $html = HTML::TreeBuilder->new_from_url(
-    "http://www.slovnik.cz/bin/mld.fpl?vcb=$string&dictdir=$dict&lines=$results"
+my $slovnik_url = URI->new('http://www.slovnik.cz/');
+$slovnik_url->path('bin/mld.fpl');
+$slovnik_url->query_form(
+    dictdir => $dictdir,
+    vcb     => "@ARGV",
+    lines   => $results,
 );
+
+my $html = HTML::TreeBuilder->new_from_url( $slovnik_url->as_string );
 
 say join qq{\n}, map { $_->as_text } $html->look_down( 'class', 'pair' );
 
 __END__
+
+=encoding utf-8
+
+=head1 NAME
+
+ slovnik.pl - cli pro slovnik.cz
+
+=head1 USAGE
+
+ slovnik.pl [-f cz|en|ge|fr|it|la|ru|sp|eo|pl] [-t cz|en|ge|fr|it|la|ru|sp|eo|pl] slovíčko
+ slovnik.pl -d slovník.směrpřekladu slovíčko
+ slovnik.pl -h
+ slovnip.pl -m
+
+=head1 REQUIRED ARGUMENTS
+
+slovíčko - slovo nebo fráze k přeložení
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-f[rom]>
+
+vstupní jazyk  jeden z cz|en|ge|fr|it|la|ru|sp|eo|pl, výchozí cz (pokud je výstupní jazyk cz, tak je výchozí en)
+
+=item B<-t[o]>
+
+výstupní jazyk jeden z cz|en|ge|fr|it|la|ru|sp|eo|pl, výchozí cz
+
+=item B<-r[esults]|-l[ines]>
+
+počet výsledků [5-25], výchozí 10
+
+=item Poznámka
+
+Buď vstupní nebo výstupní jazyk musí být čeština (cz).
+
+=item B<-d[ictdir]>
+
+slovník ve tvaru slovník.směrpřekladu. Slovník musí nabývat jednu z následujících hodnot
+encz.en, encz.cz, gecz.ge, gecz.cz, frcz.fr, frcz.cz, itcz.it, itcz.cz, spcz.sp, spcz.cz, rucz.ru, rucz.cz, lacz.la, lacz.cz, eocz.eo, eocz.cz, eosk.eo, eosk.sk, plcz.pl, plcz.cz
+
+=item B<-h[elp]>
+
+Zobrazí krátkou nápovědu.
+
+=item B<-m[an]>
+
+Zobrazí manuálovou stránku.
+
+=back
+
+=head1 DESCRIPTION
+
+=head1 DIAGNOSTICS
+
+=head1 CONFIGURATION
+
+=head1 DEPENDENCIES
+
+=head1 INCOMPATIBILITIES
+
+None reported.
+
+=head1 BUGS AND LIMITATIONS
+
+No bugs have been reported.
+
+=head1 AUTHOR
+
+ Jan Krňávek (Jan.Krnavek@gmail.com)
+ Původní slovnik.pl napsal David Watzke <slovnik@watzke.cz> http://www.watzke.cz/cs/
+
+=head1 LICENSE AND COPYRIGHT
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+
+=cut
