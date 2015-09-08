@@ -1,18 +1,5 @@
 #!/usr/bin/perl
 
-# this program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 use 5.010;
 use strict;
 use warnings;
@@ -22,7 +9,6 @@ use Pod::Usage;
 use HTML::TreeBuilder;
 use Readonly;
 use URI;
-no warnings 'experimental::smartmatch';
 
 binmode STDOUT, ':encoding(UTF-8)';
 
@@ -62,8 +48,11 @@ if ( !$dictdir ) {
 
     $from eq $to
       and pod2usage('Vstupní a výstupní jazyk nesmí být stejný.');
-    $from ~~ @LANGS and $to ~~ @LANGS
-      or pod2usage("slovnik.cz nepodporuje překlad z '$from' do '$to'.");
+    {
+        no warnings 'experimental::smartmatch';
+        $from ~~ @LANGS and $to ~~ @LANGS
+          or pod2usage("slovnik.cz nepodporuje překlad z '$from' do '$to'.");
+    }
     ( $from eq 'cz' or $to eq 'cz' )
       or pod2usage('Vstupní nebo výstupní jazyk musí být čeština.');
 
@@ -71,8 +60,11 @@ if ( !$dictdir ) {
     $dictdir .= ".$from";
 }
 
-$dictdir ~~ @SUPORTED_DICTCS
-  or pod2usage("Slovník musí být jeden z @SUPORTED_DICTCS.");
+{
+    no warnings 'experimental::smartmatch';
+    $dictdir ~~ @SUPORTED_DICTCS
+      or pod2usage("Slovník musí být jeden z @SUPORTED_DICTCS.");
+}
 
 my $slovnik_url = URI->new('http://www.slovnik.cz/');
 $slovnik_url->path('bin/mld.fpl');
@@ -84,7 +76,7 @@ $slovnik_url->query_form(
 
 my $html = HTML::TreeBuilder->new_from_url( $slovnik_url->as_string );
 
-say join qq{\n}, map { $_->as_text } $html->look_down( 'class', 'pair' );
+say join qq{\n}, map { $_->as_text } $html->look_down( 'class' => 'pair' );
 
 __END__
 
