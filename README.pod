@@ -94,6 +94,8 @@ Neoficiální cli pro webové stránky slovnik.cz. Umožňuje pomocí příkazov
 
 Žádné chyby nejsou nahlášeny.
 
+Chyby prosím nahlaste na L<https://github.com/wambash/slovnik/issues>.
+
 =head1 AUTHOR
 
  Jan Krňávek <Jan.Krnavek@gmail.com>
