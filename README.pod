@@ -25,8 +25,8 @@ vstupní jazyk  jeden z cz|en|ge|fr|it|la|ru|sp|eo|pl, výchozí cz (pokud je v�
 
 =item B<-t[o]> jazyk
 
-výstupní jazyk jeden z cz|en|ge|fr|it|la|ru|sp|eo|pl, výchozí cz
-;
+výstupní jazyk jeden z cz|en|ge|fr|it|la|ru|sp|eo|pl, výchozí cz;
+
 =item B<-r[esults]|-l[ines]> číslo
 
 počet výsledků [5-25], výchozí 10
